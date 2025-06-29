@@ -1,35 +1,16 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Realtime Whiteboard</title>
-  <link rel="stylesheet" href="style.css">
+  <meta charset="UTF-8" />
+  <title>Collaborative Whiteboard</title>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <h1>Collaborative Whiteboard</h1>
   <canvas id="board"></canvas>
   <button id="clearBtn">🧽 Clear Canvas</button>
 
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
-
-  <script type="module">
-  const firebaseConfig = {
-    apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
-    authDomain: "linn-ghd-whiteboard.firebaseapp.com",
-    databaseURL: "https://linn-ghd-whiteboard-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId: "linn-ghd-whiteboard",
-    storageBucket: "linn-ghd-whiteboard.firebasestorage.app",
-    messagingSenderId: "72958491305",
-    appId: "1:72958491305:web:6349741acf608f1817c7b8",
-    measurementId: "G-CH3TE35YQ2"
-  };
-
-  // Initialize Firebase
-  firebase.initializeApp(firebaseConfig);
-  const db = firebase.database();
-  </script>
-
-  <script src="app.js"></script>
+  <!-- Load app logic -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

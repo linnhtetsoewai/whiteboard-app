@@ -1,58 +1,93 @@
-const canvas = document.getElementById('board');
-const ctx = canvas.getContext('2d');
+import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
+import {
+  getDatabase,
+  ref,
+  push,
+  set,
+  onChildAdded,
+  remove,
+  onValue
+} from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
-canvas.width = window.innerWidth - 40;
-canvas.height = window.innerHeight - 100;
+// Initialize Firebase
+const firebaseConfig = {
+  apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
+  authDomain: "linn-ghd-whiteboard.firebaseapp.com",
+  databaseURL: "https://linn-ghd-whiteboard-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "linn-ghd-whiteboard",
+  storageBucket: "linn-ghd-whiteboard.firebasestorage.app",
+  messagingSenderId: "72958491305",
+  appId: "1:72958491305:web:6349741acf608f1817c7b8"
+};
 
-let drawing = false;
-let prev = { x: 0, y: 0 };
+const app = initializeApp(firebaseConfig);
+const database = getDatabase(app);
+const strokesRef = ref(database, "strokes");
 
-// Start drawing
-canvas.addEventListener('mousedown', (e) => {
-  drawing = true;
-  prev = { x: e.offsetX, y: e.offsetY };
-});
+window.addEventListener("DOMContentLoaded", () => {
+  const canvas = document.getElementById("board");
+  const ctx = canvas.getContext("2d");
 
-// Stop drawing
-canvas.addEventListener('mouseup', () => {
-  drawing = false;
-});
+  // Set canvas resolution to match visual size
+  canvas.width = canvas.offsetWidth;
+  canvas.height = canvas.offsetHeight;
 
-// Drawing logic
-canvas.addEventListener('mousemove', (e) => {
-  if (!drawing) return;
-  const current = { x: e.offsetX, y: e.offsetY };
-  drawLine(prev.x, prev.y, current.x, current.y, '#000');
-  sendStroke(prev.x, prev.y, current.x, current.y, '#000');
-  prev = current;
-});
+  let drawing = false;
+  let prev = { x: 0, y: 0 };
 
-// Draw line
-function drawLine(x1, y1, x2, y2, color) {
-  ctx.strokeStyle = color;
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(x1, y1);
-  ctx.lineTo(x2, y2);
-  ctx.stroke();
-  ctx.closePath();
-}
+  canvas.addEventListener("mousedown", (e) => {
+    drawing = true;
+    prev = { x: e.offsetX, y: e.offsetY };
+  });
 
-// Write to Firebase
-function sendStroke(x1, y1, x2, y2, color) {
-  firebase.database().ref('strokes').push({ x1, y1, x2, y2, color });
-}
+  canvas.addEventListener("mouseup", () => {
+    drawing = false;
+  });
 
-// Listen for others' strokes
-firebase.database().ref('strokes').on('child_added', (snapshot) => {
-  const s = snapshot.val();
-  drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
-});
+  canvas.addEventListener("mouseleave", () => {
+    drawing = false;
+  });
 
-const clearBtn = document.getElementById('clearBtn');
+  canvas.addEventListener("mousemove", (e) => {
+    if (!drawing) return;
+    const current = { x: e.offsetX, y: e.offsetY };
+    drawLine(prev.x, prev.y, current.x, current.y, "#000");
+    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
+    prev = current;
+  });
 
-// Local clear
-clearBtn.addEventListener('click', () => {
-  firebase.database().ref('strokes').remove(); // Clear Firebase strokes
-  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas locally
+  function drawLine(x1, y1, x2, y2, color) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.closePath();
+  }
+
+  function sendStroke(x1, y1, x2, y2, color) {
+    const strokeData = { x1, y1, x2, y2, color };
+    const newStrokeRef = push(strokesRef);
+    set(newStrokeRef, strokeData);
+  }
+
+  // Listen to strokes from others
+  onChildAdded(strokesRef, (snapshot) => {
+    const s = snapshot.val();
+    drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
+  });
+
+  // Clear button
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    remove(strokesRef);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+
+  // Auto clear for others
+  onValue(strokesRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  });
 });
