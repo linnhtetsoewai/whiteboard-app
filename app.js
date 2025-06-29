@@ -9,7 +9,7 @@ import {
   onValue
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
-// Initialize Firebase
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
   authDomain: "linn-ghd-whiteboard.firebaseapp.com",
@@ -28,56 +28,22 @@ window.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
 
-  // Set canvas resolution to match visual size
   canvas.width = canvas.offsetWidth;
   canvas.height = canvas.offsetHeight;
 
-  let drawing = false;
+  let isDrawing = false;
+  let isErasing = false;
   let prev = { x: 0, y: 0 };
-  let erasing = false;
-  let strokes  = {}; // Store strokes with their Firebase keys
+  let strokes = {};
 
-  canvas.addEventListener("mousedown", (e) => {
-    if (!erasing) {
-      drawing = true;
-      prev = { x: e.offsetX, y: e.offsetY };
-  }
-
-  canvas.addEventListener("mouseup", () => {
-    drawing = false;
+  // Toggle eraser mode
+  document.getElementById("eraserBtn").addEventListener("click", () => {
+    isErasing = !isErasing;
+    isDrawing = false;
+    canvas.style.cursor = isErasing ? "cell" : "crosshair";
   });
 
-  canvas.addEventListener("mouseleave", () => {
-    drawing = false;
-  });
-
-  canvas.addEventListener("mousemove", (e) => {
-    if (erasing || !drawing) return;  // erasing blocks drawing
-    const current = { x: e.offsetX, y: e.offsetY };
-    drawLine(prev.x, prev.y, current.x, current.y, "#000");
-    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
-    prev = current;
-  });
-
-  canvas.addEventListener("click", (e) => {
-    if (!erasing) return;
-
-    const x = e.offsetX;
-    const y = e.offsetY;
-    const threshold = 10; // radius in px
-
-    for (const [key, s] of Object.entries(strokes)) {
-      const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
-      if (dist < threshold) {
-        remove(ref(database, `strokes/${key}`));
-        delete strokes[key];
-        break; // erase one stroke at a time
-      }
-    }
-  });
-
-});
-
+  // Draw line
   function drawLine(x1, y1, x2, y2, color) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -88,44 +54,39 @@ window.addEventListener("DOMContentLoaded", () => {
     ctx.closePath();
   }
 
+  // Save stroke to Firebase
   function sendStroke(x1, y1, x2, y2, color) {
     const strokeData = { x1, y1, x2, y2, color };
     const newStrokeRef = push(strokesRef);
     set(newStrokeRef, strokeData);
   }
 
-  // Listen to strokes from others
-  onChildAdded(strokesRef, (snapshot) => {
-    const s = snapshot.val();
-    strokes[snapshot.key] = s; // store with key
-    // console.log("Received stroke:", s);
-    drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
+  // Drawing only when not erasing
+  canvas.addEventListener("mousedown", (e) => {
+    if (isErasing) return;
+    isDrawing = true;
+    prev = { x: e.offsetX, y: e.offsetY };
   });
 
-  // Clear button
-  document.getElementById("clearBtn").addEventListener("click", () => {
-    remove(strokesRef);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  canvas.addEventListener("mouseup", () => {
+    isDrawing = false;
   });
 
-  // Auto clear for others
-  onValue(strokesRef, (snapshot) => {
-    if (!snapshot.exists()) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      strokes = {}; // reset local strokes
-    }
+  canvas.addEventListener("mouseleave", () => {
+    isDrawing = false;
   });
 
-  // Toggle eraser mode
-  document.getElementById("eraserBtn").addEventListener("click", () => {
-    erasing = !erasing;
-    drawing = false; // prevent stuck drawing flag
-    canvas.style.cursor = erasing ? "cell" : "crosshair";
+  canvas.addEventListener("mousemove", (e) => {
+    if (!isDrawing || isErasing) return;
+    const current = { x: e.offsetX, y: e.offsetY };
+    drawLine(prev.x, prev.y, current.x, current.y, "#000");
+    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
+    prev = current;
   });
 
-  // Erase stroke on click
+  // Erase on click (while in eraser mode)
   canvas.addEventListener("click", (e) => {
-    if (!erasing) return;
+    if (!isErasing) return;
 
     const x = e.offsetX;
     const y = e.offsetY;
@@ -141,7 +102,7 @@ window.addEventListener("DOMContentLoaded", () => {
     }
   });
 
-  // Distance helper
+  // Utility for eraser click detection
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
     const B = py - y1;
@@ -170,4 +131,24 @@ window.addEventListener("DOMContentLoaded", () => {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  // Draw strokes from database
+  onChildAdded(strokesRef, (snapshot) => {
+    const s = snapshot.val();
+    strokes[snapshot.key] = s;
+    drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
+  });
+
+  // Clear button
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    remove(strokesRef);
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+  });
+
+  // Clear sync
+  onValue(strokesRef, (snapshot) => {
+    if (!snapshot.exists()) {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      strokes = {};
+    }
+  });
 });
