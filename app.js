@@ -75,6 +75,8 @@ window.addEventListener("DOMContentLoaded", () => {
   // Listen to strokes from others
   onChildAdded(strokesRef, (snapshot) => {
     const s = snapshot.val();
+    // Uncomment the next line for debugging only
+    // console.log("Received stroke:", s);
     drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
   });
 
