@@ -38,8 +38,10 @@ window.addEventListener("DOMContentLoaded", () => {
   let strokes  = {}; // Store strokes with their Firebase keys
 
   canvas.addEventListener("mousedown", (e) => {
-    drawing = true;
-    prev = { x: e.offsetX, y: e.offsetY };
+    if (!erasing) {
+      drawing = true;
+      prev = { x: e.offsetX, y: e.offsetY };
+  }
 
   canvas.addEventListener("mouseup", () => {
     drawing = false;
@@ -117,6 +119,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Toggle eraser mode
   document.getElementById("eraserBtn").addEventListener("click", () => {
     erasing = !erasing;
+    drawing = false; // prevent stuck drawing flag
     canvas.style.cursor = erasing ? "cell" : "crosshair";
   });
 
