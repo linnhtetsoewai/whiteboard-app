@@ -110,14 +110,35 @@ window.addEventListener("DOMContentLoaded", () => {
   onValue(strokesRef, (snapshot) => {
     if (!snapshot.exists()) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
+      strokes = {}; // reset local strokes
     }
   });
 
+  // Toggle eraser mode
   document.getElementById("eraserBtn").addEventListener("click", () => {
     erasing = !erasing;
     canvas.style.cursor = erasing ? "cell" : "crosshair";
   });
 
+  // Erase stroke on click
+  canvas.addEventListener("click", (e) => {
+    if (!erasing) return;
+
+    const x = e.offsetX;
+    const y = e.offsetY;
+    const threshold = 10;
+
+    for (const [key, s] of Object.entries(strokes)) {
+      const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
+      if (dist < threshold) {
+        remove(ref(database, `strokes/${key}`));
+        delete strokes[key];
+        break;
+      }
+    }
+  });
+
+  // Distance helper
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
     const B = py - y1;

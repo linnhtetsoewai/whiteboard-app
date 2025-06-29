@@ -24,23 +24,22 @@ canvas {
   touch-action: none;
 }
 
-#clearBtn {
+/* Style for both buttons */
+button {
   padding: 10px 20px;
   font-size: 16px;
-  background-color: #e74c3c;
   color: white;
   border: none;
   border-radius: 6px;
+  margin: 10px 5px;
   cursor: pointer;
 }
 
+/* Individual colors */
+#clearBtn {
+  background-color: #e74c3c;
+}
+
 #eraserBtn {
-  padding: 10px 20px;
-  font-size: 16px;
   background-color: #3498db;
-  color: white;
-  border: none;
-  border-radius: 6px;
-  cursor: pointer;
-  margin-left: 10px;
 }
