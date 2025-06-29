@@ -50,7 +50,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   canvas.addEventListener("mousemove", (e) => {
-    if (!drawing) return;
+    if (erasing || !drawing) return;  // erasing blocks drawing
     const current = { x: e.offsetX, y: e.offsetY };
     drawLine(prev.x, prev.y, current.x, current.y, "#000");
     sendStroke(prev.x, prev.y, current.x, current.y, "#000");
