@@ -27,9 +27,6 @@ window.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
 
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-
   let isDrawing = false;
   let isErasing = false;
   let prev = {};
@@ -40,6 +37,15 @@ window.addEventListener("DOMContentLoaded", () => {
   let threshold = 30;
   let erasedThisDrag = new Set();
   let spacePressed = false;
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    redrawAll();
+  }
+
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas(); // initial
 
   function worldToScreen(x, y) {
     return { x: x + panOffset.x, y: y + panOffset.y };
