@@ -19,8 +19,8 @@ canvas {
   height: 70vh;
   max-width: 1000px;
   max-height: 700px;
-  margin: 20px;
-  cursor: crosshair;
+  margin: 20px auto;
+  display: block;
   touch-action: none;
 }
 

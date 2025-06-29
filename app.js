@@ -9,20 +9,19 @@ import {
   onValue
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
-// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
   authDomain: "linn-ghd-whiteboard.firebaseapp.com",
   databaseURL: "https://linn-ghd-whiteboard-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "linn-ghd-whiteboard",
-  storageBucket: "linn-ghd-whiteboard.firebasestorage.app",
+  storageBucket: "linn-ghd-whiteboard.appspot.com",
   messagingSenderId: "72958491305",
   appId: "1:72958491305:web:6349741acf608f1817c7b8"
 };
 
 const app = initializeApp(firebaseConfig);
-const database = getDatabase(app);
-const strokesRef = ref(database, "strokes");
+const db = getDatabase(app);
+const strokesRef = ref(db, "strokes");
 
 window.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("board");
@@ -33,26 +32,12 @@ window.addEventListener("DOMContentLoaded", () => {
 
   let isDrawing = false;
   let isErasing = false;
-  let prev = { x: 0, y: 0 };
+  let prev = {};
   let strokes = {};
   const threshold = 30;
+  let mouseX = 0;
+  let mouseY = 0;
 
-  // Custom eraser circle rendering
-  let mouseX = 0, mouseY = 0;
-
-  // Toggle eraser mode
-  document.getElementById("eraserBtn").addEventListener("click", () => {
-    isErasing = !isErasing;
-    isDrawing = false;
-    if (isErasing) {
-      canvas.style.cursor = "none";
-    } else {
-      canvas.style.cursor = "crosshair";
-      redrawStrokes();
-    }
-  });
-
-  // Draw line
   function drawLine(x1, y1, x2, y2, color) {
     ctx.strokeStyle = color;
     ctx.lineWidth = 2;
@@ -63,29 +48,17 @@ window.addEventListener("DOMContentLoaded", () => {
     ctx.closePath();
   }
 
-  // Save stroke to Firebase
   function sendStroke(x1, y1, x2, y2, color) {
-    const strokeData = { x1, y1, x2, y2, color };
-    const newStrokeRef = push(strokesRef);
-    set(newStrokeRef, strokeData);
+    const newStroke = push(strokesRef);
+    set(newStroke, { x1, y1, x2, y2, color });
   }
 
-  // Eraser cursor overlay
-  canvas.addEventListener("mousemove", (e) => {
-    mouseX = e.offsetX;
-    mouseY = e.offsetY;
-
-    if (!isDrawing && isErasing) {
-      redrawStrokes(); // clear + redraw strokes
-      drawEraserCursor();
+  function redrawAll() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of Object.values(strokes)) {
+      drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
     }
-
-    if (!isDrawing || isErasing) return;
-    const current = { x: e.offsetX, y: e.offsetY };
-    drawLine(prev.x, prev.y, current.x, current.y, "#000");
-    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
-    prev = current;
-  });
+  }
 
   function drawEraserCursor() {
     ctx.beginPath();
@@ -95,9 +68,26 @@ window.addEventListener("DOMContentLoaded", () => {
     ctx.stroke();
   }
 
+  canvas.addEventListener("mousemove", (e) => {
+    mouseX = e.offsetX;
+    mouseY = e.offsetY;
+
+    if (isErasing && !isDrawing) {
+      redrawAll();
+      drawEraserCursor();
+    }
+
+    if (!isDrawing || isErasing) return;
+
+    const current = { x: mouseX, y: mouseY };
+    drawLine(prev.x, prev.y, current.x, current.y, "#000");
+    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
+    prev = current;
+  });
+
   canvas.addEventListener("mousedown", (e) => {
     if (isErasing) {
-      tryEraseStroke(e.offsetX, e.offsetY);
+      eraseStrokeAt(e.offsetX, e.offsetY);
       return;
     }
     isDrawing = true;
@@ -112,12 +102,13 @@ window.addEventListener("DOMContentLoaded", () => {
     isDrawing = false;
   });
 
-  function tryEraseStroke(x, y) {
+  function eraseStrokeAt(x, y) {
     for (const [key, s] of Object.entries(strokes)) {
       const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
       if (dist < threshold) {
-        remove(ref(database, `strokes/${key}`));
+        remove(ref(db, `strokes/${key}`));
         delete strokes[key];
+        redrawAll();
         return;
       }
     }
@@ -128,53 +119,41 @@ window.addEventListener("DOMContentLoaded", () => {
     const B = py - y1;
     const C = x2 - x1;
     const D = y2 - y1;
-
     const dot = A * C + B * D;
-    const len_sq = C * C + D * D;
-    let param = -1;
-    if (len_sq !== 0) param = dot / len_sq;
-
-    let xx, yy;
-    if (param < 0) {
-      xx = x1;
-      yy = y1;
-    } else if (param > 1) {
-      xx = x2;
-      yy = y2;
-    } else {
-      xx = x1 + param * C;
-      yy = y1 + param * D;
-    }
-
+    const lenSq = C * C + D * D;
+    let param = dot / lenSq;
+    if (param < 0) param = 0;
+    if (param > 1) param = 1;
+    const xx = x1 + param * C;
+    const yy = y1 + param * D;
     const dx = px - xx;
     const dy = py - yy;
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  function redrawStrokes() {
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    for (const s of Object.values(strokes)) {
-      drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
-    }
-  }
-
-  // Draw strokes from DB
-  onChildAdded(strokesRef, (snapshot) => {
-    const s = snapshot.val();
-    strokes[snapshot.key] = s;
+  onChildAdded(strokesRef, (snap) => {
+    const s = snap.val();
+    strokes[snap.key] = s;
     drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
   });
 
-  // Clear canvas
-  document.getElementById("clearBtn").addEventListener("click", () => {
-    remove(strokesRef);
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-  });
-
-  onValue(strokesRef, (snapshot) => {
-    if (!snapshot.exists()) {
+  onValue(strokesRef, (snap) => {
+    if (!snap.exists()) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
       strokes = {};
+    }
+  });
+
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    remove(strokesRef);
+  });
+
+  document.getElementById("eraserBtn").addEventListener("click", () => {
+    isErasing = !isErasing;
+    isDrawing = false;
+    canvas.style.cursor = isErasing ? "none" : "crosshair";
+    if (!isErasing) {
+      redrawAll();
     }
   });
 });
