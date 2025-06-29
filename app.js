@@ -34,11 +34,12 @@ window.addEventListener("DOMContentLoaded", () => {
 
   let drawing = false;
   let prev = { x: 0, y: 0 };
+  let erasing = false;
+  let strokes  = {}; // Store strokes with their Firebase keys
 
   canvas.addEventListener("mousedown", (e) => {
     drawing = true;
     prev = { x: e.offsetX, y: e.offsetY };
-  });
 
   canvas.addEventListener("mouseup", () => {
     drawing = false;
@@ -55,6 +56,25 @@ window.addEventListener("DOMContentLoaded", () => {
     sendStroke(prev.x, prev.y, current.x, current.y, "#000");
     prev = current;
   });
+
+  canvas.addEventListener("click", (e) => {
+    if (!erasing) return;
+
+    const x = e.offsetX;
+    const y = e.offsetY;
+    const threshold = 10; // radius in px
+
+    for (const [key, s] of Object.entries(strokes)) {
+      const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
+      if (dist < threshold) {
+        remove(ref(database, `strokes/${key}`));
+        delete strokes[key];
+        break; // erase one stroke at a time
+      }
+    }
+  });
+
+});
 
   function drawLine(x1, y1, x2, y2, color) {
     ctx.strokeStyle = color;
@@ -75,7 +95,7 @@ window.addEventListener("DOMContentLoaded", () => {
   // Listen to strokes from others
   onChildAdded(strokesRef, (snapshot) => {
     const s = snapshot.val();
-    // Uncomment the next line for debugging only
+    strokes[snapshot.key] = s; // store with key
     // console.log("Received stroke:", s);
     drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
   });
@@ -92,4 +112,38 @@ window.addEventListener("DOMContentLoaded", () => {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
     }
   });
+
+  document.getElementById("eraserBtn").addEventListener("click", () => {
+    erasing = !erasing;
+    canvas.style.cursor = erasing ? "cell" : "crosshair";
+  });
+
+  function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
+    const A = px - x1;
+    const B = py - y1;
+    const C = x2 - x1;
+    const D = y2 - y1;
+
+    const dot = A * C + B * D;
+    const len_sq = C * C + D * D;
+    let param = -1;
+    if (len_sq !== 0) param = dot / len_sq;
+
+    let xx, yy;
+    if (param < 0) {
+      xx = x1;
+      yy = y1;
+    } else if (param > 1) {
+      xx = x2;
+      yy = y2;
+    } else {
+      xx = x1 + param * C;
+      yy = y1 + param * D;
+    }
+
+    const dx = px - xx;
+    const dy = py - yy;
+    return Math.sqrt(dx * dx + dy * dy);
+  }
+
 });
