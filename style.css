@@ -35,6 +35,11 @@ button {
   color: white;
 }
 
+#zoomToFitBtn {
+  background-color: #2a19c9;
+  color: white;
+}
+
 canvas#board {
   width: calc(100vw - 10px);
   height: calc(100vh - 120px);
