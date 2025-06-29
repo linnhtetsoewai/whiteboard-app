@@ -9,6 +9,7 @@ import {
   onValue
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
+// Firebase config
 const firebaseConfig = {
   apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
   authDomain: "linn-ghd-whiteboard.firebaseapp.com",
@@ -103,19 +104,24 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   function eraseStrokeAt(x, y) {
+    const toDelete = [];
+
     for (const [key, s] of Object.entries(strokes)) {
       const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
       if (dist < threshold) {
-        remove(ref(db, `strokes/${key}`));
-        delete strokes[key];
-        anyErased = true;
+        toDelete.push(key);
       }
     }
 
-    if (anyErased) {
+    toDelete.forEach((key) => {
+      remove(ref(db, `strokes/${key}`));
+      delete strokes[key];
+    });
+
+    if (toDelete.length > 0) {
       redrawAll();
-      }
     }
+  }
 
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
