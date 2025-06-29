@@ -39,19 +39,16 @@ window.addEventListener("DOMContentLoaded", () => {
   let spacePressed = false;
 
   function resizeCanvas() {
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = canvas.clientWidth * ratio;
-    canvas.height = canvas.clientHeight * ratio;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); // scale all drawings
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
     redrawAll();
   }
 
   function getMousePos(e) {
     const rect = canvas.getBoundingClientRect();
-    const ratio = window.devicePixelRatio || 1;
     return {
-      x: (e.clientX - rect.left) * ratio,
-      y: (e.clientY - rect.top) * ratio
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height)
     };
   }
 
