@@ -37,8 +37,8 @@ button {
 }
 
 canvas#board {
-  width: 90vw;
-  height: 80vh;
+  width: 90%;
+  height: 80%;
   display: block;
   background-color: white;
   cursor: crosshair;
