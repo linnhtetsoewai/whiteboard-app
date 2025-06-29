@@ -108,11 +108,14 @@ window.addEventListener("DOMContentLoaded", () => {
       if (dist < threshold) {
         remove(ref(db, `strokes/${key}`));
         delete strokes[key];
-        redrawAll();
-        return;
+        anyErased = true;
       }
     }
-  }
+
+    if (anyErased) {
+      redrawAll();
+      }
+    }
 
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
