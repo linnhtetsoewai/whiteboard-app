@@ -38,6 +38,7 @@ window.addEventListener("DOMContentLoaded", () => {
   const threshold = 30;
   let mouseX = 0;
   let mouseY = 0;
+  const erasedThisDrag = new Set();
 
   function drawLine(x1, y1, x2, y2, color) {
     ctx.strokeStyle = color;
@@ -73,12 +74,16 @@ window.addEventListener("DOMContentLoaded", () => {
     mouseX = e.offsetX;
     mouseY = e.offsetY;
 
-    if (isErasing && !isDrawing) {
+    if (isErasing) {
+      if (isDrawing) {
+        eraseStrokeAt(mouseX, mouseY);
+      }
       redrawAll();
       drawEraserCursor();
+      return;
     }
 
-    if (!isDrawing || isErasing) return;
+    if (!isDrawing) return;
 
     const current = { x: mouseX, y: mouseY };
     drawLine(prev.x, prev.y, current.x, current.y, "#000");
@@ -88,11 +93,13 @@ window.addEventListener("DOMContentLoaded", () => {
 
   canvas.addEventListener("mousedown", (e) => {
     if (isErasing) {
+      isDrawing = true;
+      erasedThisDrag.clear();
       eraseStrokeAt(e.offsetX, e.offsetY);
-      return;
+    } else {
+      isDrawing = true;
+      prev = { x: e.offsetX, y: e.offsetY };
     }
-    isDrawing = true;
-    prev = { x: e.offsetX, y: e.offsetY };
   });
 
   canvas.addEventListener("mouseup", () => {
@@ -104,23 +111,25 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   function eraseStrokeAt(x, y) {
-    const toDelete = [];
+    const keysToDelete = Object.entries(strokes)
+      .filter(([key, s]) => {
+        const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
+        return dist < threshold && !erasedThisDrag.has(key);
+      })
+      .map(([key]) => key);
 
-    for (const [key, s] of Object.entries(strokes)) {
-      const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
-      if (dist < threshold) {
-        toDelete.push(key);
+    if (keysToDelete.length === 0) return;
+
+    Promise.all(
+      keysToDelete.map(key => {
+        erasedThisDrag.add(key);
+        return remove(ref(db, `strokes/${key}`));
+      })
+    ).then(() => {
+      for (const key of keysToDelete) {
+        delete strokes[key];
       }
-    }
-
-    toDelete.forEach((key) => {
-      remove(ref(db, `strokes/${key}`));
-      delete strokes[key];
     });
-
-    if (toDelete.length > 0) {
-      redrawAll();
-    }
   }
 
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
@@ -128,11 +137,15 @@ window.addEventListener("DOMContentLoaded", () => {
     const B = py - y1;
     const C = x2 - x1;
     const D = y2 - y1;
+
     const dot = A * C + B * D;
     const lenSq = C * C + D * D;
+    if (lenSq === 0) return Math.sqrt(A * A + B * B);
+
     let param = dot / lenSq;
     if (param < 0) param = 0;
-    if (param > 1) param = 1;
+    else if (param > 1) param = 1;
+
     const xx = x1 + param * C;
     const yy = y1 + param * D;
     const dx = px - xx;
