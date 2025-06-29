@@ -10,13 +10,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: " " /* your config */,
-  authDomain: " ",
-  databaseURL: " ",
-  projectId: " ",
-  storageBucket: " ",
-  messagingSenderId: " ",
-  appId: " "
+  apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
+  authDomain: "linn-ghd-whiteboard.firebaseapp.com",
+  databaseURL: "https://linn-ghd-whiteboard-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "linn-ghd-whiteboard",
+  storageBucket: "linn-ghd-whiteboard.appspot.com",
+  messagingSenderId: "72958491305",
+  appId: "1:72958491305:web:6349741acf608f1817c7b8"
 };
 
 const app = initializeApp(firebaseConfig);
@@ -39,16 +39,19 @@ window.addEventListener("DOMContentLoaded", () => {
   let spacePressed = false;
 
   function resizeCanvas() {
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = canvas.clientWidth * ratio;
+    canvas.height = canvas.clientHeight * ratio;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0); // scale all drawings
     redrawAll();
   }
 
   function getMousePos(e) {
     const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
     return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+      x: (e.clientX - rect.left) * ratio,
+      y: (e.clientY - rect.top) * ratio
     };
   }
 
