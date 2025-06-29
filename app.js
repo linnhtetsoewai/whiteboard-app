@@ -35,12 +35,21 @@ window.addEventListener("DOMContentLoaded", () => {
   let isErasing = false;
   let prev = { x: 0, y: 0 };
   let strokes = {};
+  const threshold = 30;
+
+  // Custom eraser circle rendering
+  let mouseX = 0, mouseY = 0;
 
   // Toggle eraser mode
   document.getElementById("eraserBtn").addEventListener("click", () => {
     isErasing = !isErasing;
     isDrawing = false;
-    canvas.style.cursor = isErasing ? "cell" : "crosshair";
+    if (isErasing) {
+      canvas.style.cursor = "none";
+    } else {
+      canvas.style.cursor = "crosshair";
+      redrawStrokes();
+    }
   });
 
   // Draw line
@@ -61,9 +70,36 @@ window.addEventListener("DOMContentLoaded", () => {
     set(newStrokeRef, strokeData);
   }
 
-  // Drawing only when not erasing
+  // Eraser cursor overlay
+  canvas.addEventListener("mousemove", (e) => {
+    mouseX = e.offsetX;
+    mouseY = e.offsetY;
+
+    if (!isDrawing && isErasing) {
+      redrawStrokes(); // clear + redraw strokes
+      drawEraserCursor();
+    }
+
+    if (!isDrawing || isErasing) return;
+    const current = { x: e.offsetX, y: e.offsetY };
+    drawLine(prev.x, prev.y, current.x, current.y, "#000");
+    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
+    prev = current;
+  });
+
+  function drawEraserCursor() {
+    ctx.beginPath();
+    ctx.arc(mouseX, mouseY, threshold, 0, 2 * Math.PI);
+    ctx.strokeStyle = "#3498db";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+
   canvas.addEventListener("mousedown", (e) => {
-    if (isErasing) return;
+    if (isErasing) {
+      tryEraseStroke(e.offsetX, e.offsetY);
+      return;
+    }
     isDrawing = true;
     prev = { x: e.offsetX, y: e.offsetY };
   });
@@ -76,41 +112,17 @@ window.addEventListener("DOMContentLoaded", () => {
     isDrawing = false;
   });
 
-  canvas.addEventListener("mousemove", (e) => {
-    if (!isDrawing || isErasing) return;
-    const current = { x: e.offsetX, y: e.offsetY };
-    drawLine(prev.x, prev.y, current.x, current.y, "#000");
-    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
-    prev = current;
-  });
-
-  // Erase on click
-  canvas.addEventListener("click", (e) => {
-    if (!isErasing) return;
-
-    const x = e.offsetX;
-    const y = e.offsetY;
-    const threshold = 30; // ⬅️ Increased threshold for better accuracy
-
-    let erased = false;
-
+  function tryEraseStroke(x, y) {
     for (const [key, s] of Object.entries(strokes)) {
       const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
       if (dist < threshold) {
-        console.log(`Erasing stroke: ${key}`);
         remove(ref(database, `strokes/${key}`));
         delete strokes[key];
-        erased = true;
-        break;
+        return;
       }
     }
+  }
 
-    if (!erased) {
-      console.log("No nearby stroke found to erase.");
-    }
-  });
-
-  // Helper to measure distance from point to a line segment
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
     const B = py - y1;
@@ -139,6 +151,13 @@ window.addEventListener("DOMContentLoaded", () => {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
+  function redrawStrokes() {
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const s of Object.values(strokes)) {
+      drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
+    }
+  }
+
   // Draw strokes from DB
   onChildAdded(strokesRef, (snapshot) => {
     const s = snapshot.val();
@@ -146,13 +165,12 @@ window.addEventListener("DOMContentLoaded", () => {
     drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
   });
 
-  // Clear button
+  // Clear canvas
   document.getElementById("clearBtn").addEventListener("click", () => {
     remove(strokesRef);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 
-  // Sync clear action
   onValue(strokesRef, (snapshot) => {
     if (!snapshot.exists()) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
