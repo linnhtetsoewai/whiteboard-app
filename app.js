@@ -84,25 +84,33 @@ window.addEventListener("DOMContentLoaded", () => {
     prev = current;
   });
 
-  // Erase on click (while in eraser mode)
+  // Erase on click
   canvas.addEventListener("click", (e) => {
     if (!isErasing) return;
 
     const x = e.offsetX;
     const y = e.offsetY;
-    const threshold = 10;
+    const threshold = 30; // ⬅️ Increased threshold for better accuracy
+
+    let erased = false;
 
     for (const [key, s] of Object.entries(strokes)) {
       const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
       if (dist < threshold) {
+        console.log(`Erasing stroke: ${key}`);
         remove(ref(database, `strokes/${key}`));
         delete strokes[key];
+        erased = true;
         break;
       }
     }
+
+    if (!erased) {
+      console.log("No nearby stroke found to erase.");
+    }
   });
 
-  // Utility for eraser click detection
+  // Helper to measure distance from point to a line segment
   function pointToSegmentDistance(px, py, x1, y1, x2, y2) {
     const A = px - x1;
     const B = py - y1;
@@ -131,7 +139,7 @@ window.addEventListener("DOMContentLoaded", () => {
     return Math.sqrt(dx * dx + dy * dy);
   }
 
-  // Draw strokes from database
+  // Draw strokes from DB
   onChildAdded(strokesRef, (snapshot) => {
     const s = snapshot.val();
     strokes[snapshot.key] = s;
@@ -144,7 +152,7 @@ window.addEventListener("DOMContentLoaded", () => {
     ctx.clearRect(0, 0, canvas.width, canvas.height);
   });
 
-  // Clear sync
+  // Sync clear action
   onValue(strokesRef, (snapshot) => {
     if (!snapshot.exists()) {
       ctx.clearRect(0, 0, canvas.width, canvas.height);
