@@ -48,3 +48,11 @@ firebase.database().ref('strokes').on('child_added', (snapshot) => {
   const s = snapshot.val();
   drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
 });
+
+const clearBtn = document.getElementById('clearBtn');
+
+// Local clear
+clearBtn.addEventListener('click', () => {
+  firebase.database().ref('strokes').remove(); // Clear Firebase strokes
+  ctx.clearRect(0, 0, canvas.width, canvas.height); // Clear canvas locally
+});
