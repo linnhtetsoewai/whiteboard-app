@@ -10,13 +10,13 @@ import {
 } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-database.js";
 
 const firebaseConfig = {
-  apiKey: "AIzaSyCpl0fFxzLJECFMShAnnJ0ZHijPQbfhY9c",
-  authDomain: "linn-ghd-whiteboard.firebaseapp.com",
-  databaseURL: "https://linn-ghd-whiteboard-default-rtdb.asia-southeast1.firebasedatabase.app",
-  projectId: "linn-ghd-whiteboard",
-  storageBucket: "linn-ghd-whiteboard.appspot.com",
-  messagingSenderId: "72958491305",
-  appId: "1:72958491305:web:6349741acf608f1817c7b8"
+  apiKey: " " /* your config */,
+  authDomain: " ",
+  databaseURL: " ",
+  projectId: " ",
+  storageBucket: " ",
+  messagingSenderId: " ",
+  appId: " "
 };
 
 const app = initializeApp(firebaseConfig);
@@ -44,8 +44,16 @@ window.addEventListener("DOMContentLoaded", () => {
     redrawAll();
   }
 
+  function getMousePos(e) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: (e.clientX - rect.left) * (canvas.width / rect.width),
+      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+    };
+  }
+
   window.addEventListener("resize", resizeCanvas);
-  resizeCanvas(); // initial
+  resizeCanvas();
 
   function worldToScreen(x, y) {
     return { x: x + panOffset.x, y: y + panOffset.y };
@@ -124,6 +132,7 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   canvas.addEventListener("mousedown", (e) => {
+    const { x, y } = getMousePos(e);
     if (spacePressed) {
       isPanning = true;
       panStart = { x: e.clientX, y: e.clientY };
@@ -132,9 +141,9 @@ window.addEventListener("DOMContentLoaded", () => {
     isDrawing = true;
     if (isErasing) {
       erasedThisDrag.clear();
-      eraseStrokeAt(e.offsetX, e.offsetY);
+      eraseStrokeAt(x, y);
     } else {
-      prev = screenToWorld(e.offsetX, e.offsetY);
+      prev = screenToWorld(x, y);
     }
   });
 
@@ -144,6 +153,7 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   canvas.addEventListener("mousemove", (e) => {
+    const { x, y } = getMousePos(e);
     if (isPanning) {
       panOffset.x += e.clientX - panStart.x;
       panOffset.y += e.clientY - panStart.y;
@@ -153,15 +163,15 @@ window.addEventListener("DOMContentLoaded", () => {
     }
 
     if (isErasing) {
-      if (isDrawing) eraseStrokeAt(e.offsetX, e.offsetY);
+      if (isDrawing) eraseStrokeAt(x, y);
       redrawAll();
-      drawEraserCursor(e.offsetX, e.offsetY);
+      drawEraserCursor(x, y);
       return;
     }
 
     if (!isDrawing) return;
 
-    const current = screenToWorld(e.offsetX, e.offsetY);
+    const current = screenToWorld(x, y);
     drawLine(prev.x, prev.y, current.x, current.y, "#000");
     sendStroke(prev.x, prev.y, current.x, current.y, "#000");
     prev = current;
