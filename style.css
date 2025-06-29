@@ -6,10 +6,7 @@ body {
   flex-direction: column;
   align-items: center;
   justify-content: flex-start;
-}
-
-h1 {
-  margin-top: 20px;
+  padding: 20px;
 }
 
 canvas {
@@ -17,8 +14,6 @@ canvas {
   background-color: #fff;
   width: 90vw;
   height: 70vh;
-  max-width: 1000px;
-  max-height: 700px;
   margin: 20px auto;
   display: block;
   touch-action: none;

@@ -28,8 +28,9 @@ window.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
 
-  canvas.width = canvas.offsetWidth;
-  canvas.height = canvas.offsetHeight;
+  // Sync real drawing resolution to visible size
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
 
   let isDrawing = false;
   let isErasing = false;
@@ -92,13 +93,15 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   canvas.addEventListener("mousedown", (e) => {
+    isDrawing = true;
+    mouseX = e.offsetX;
+    mouseY = e.offsetY;
+
     if (isErasing) {
-      isDrawing = true;
       erasedThisDrag.clear();
-      eraseStrokeAt(e.offsetX, e.offsetY);
+      eraseStrokeAt(mouseX, mouseY);
     } else {
-      isDrawing = true;
-      prev = { x: e.offsetX, y: e.offsetY };
+      prev = { x: mouseX, y: mouseY };
     }
   });
 
