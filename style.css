@@ -37,7 +37,7 @@ button {
 
 canvas#board {
   width: calc(100vw - 40px);
-  height: calc(100vh - 60px);
+  height: calc(100vh - 100px);
   margin: 30px;
   border: 1px solid #ccc;
   display: block;

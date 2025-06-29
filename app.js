@@ -60,11 +60,17 @@ window.addEventListener("DOMContentLoaded", () => {
   resizeCanvas();
 
   function worldToScreen(x, y) {
-    return { x: x + panOffset.x, y: y + panOffset.y };
+    return {
+      x: (x + panOffset.x) * zoomLevel,
+      y: (y + panOffset.y) * zoomLevel
+    };
   }
 
   function screenToWorld(x, y) {
-    return { x: x - panOffset.x, y: y - panOffset.y };
+    return {
+      x: x / zoomLevel - panOffset.x,
+      y: y / zoomLevel - panOffset.y
+    };
   }
 
   function drawLine(x1, y1, x2, y2, color) {
@@ -179,6 +185,19 @@ window.addEventListener("DOMContentLoaded", () => {
     drawLine(prev.x, prev.y, current.x, current.y, "#000");
     sendStroke(prev.x, prev.y, current.x, current.y, "#000");
     prev = current;
+  });
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const zoomIntensity = 0.1;
+    const { x, y } = getMousePos(e);
+    const beforeZoom = screenToWorld(x, y);
+    zoomLevel *= e.deltaY < 0 ? 1 + zoomIntensity : 1 - zoomIntensity;
+    zoomLevel = Math.max(0.2, Math.min(zoomLevel, 5));
+    const afterZoom = screenToWorld(x, y);
+    panOffset.x += beforeZoom.x - afterZoom.x;
+    panOffset.y += beforeZoom.y - afterZoom.y;
+    redrawAll();
   });
 
   document.addEventListener("keydown", (e) => {
