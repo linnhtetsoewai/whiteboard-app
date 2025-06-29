@@ -1,4 +1,4 @@
-// Initialize Firebase
+
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import {
   getDatabase,
@@ -28,33 +28,38 @@ window.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
 
-  const rect = canvas.getBoundingClientRect();
-  canvas.width = rect.width;
-  canvas.height = rect.height;
+  canvas.width = canvas.clientWidth;
+  canvas.height = canvas.clientHeight;
 
   let isDrawing = false;
   let isErasing = false;
   let prev = {};
   let strokes = {};
+  let scale = 1;
+  let origin = { x: 0, y: 0 };
+  let pan = { x: 0, y: 0 };
   const threshold = 30;
   let erasedThisDrag = new Set();
+  let mouseX = 0;
+  let mouseY = 0;
+  let spacePressed = false;
+  let isPanning = false;
+  let panStart = {};
 
-  function getRelativeCoords(e) {
-    const rect = canvas.getBoundingClientRect();
+  function toWorld(x, y) {
     return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height)
+      x: (x - pan.x) / scale,
+      y: (y - pan.y) / scale
     };
   }
 
   function drawLine(x1, y1, x2, y2, color) {
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2 / scale;
     ctx.beginPath();
     ctx.moveTo(x1, y1);
     ctx.lineTo(x2, y2);
     ctx.stroke();
-    ctx.closePath();
   }
 
   function sendStroke(x1, y1, x2, y2, color) {
@@ -63,53 +68,28 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   function redrawAll() {
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.setTransform(scale, 0, 0, scale, pan.x, pan.y);
     for (const s of Object.values(strokes)) {
       drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
     }
   }
 
-  function drawEraserCursor(x, y) {
+  function drawEraserCursor() {
+    const world = toWorld(mouseX, mouseY);
     ctx.beginPath();
-    ctx.arc(x, y, threshold, 0, 2 * Math.PI);
+    ctx.arc(world.x, world.y, threshold, 0, 2 * Math.PI);
     ctx.strokeStyle = "#3498db";
-    ctx.lineWidth = 1;
+    ctx.lineWidth = 1 / scale;
     ctx.stroke();
   }
 
-  canvas.addEventListener("mousedown", (e) => {
-    isDrawing = true;
-    const { x, y } = getRelativeCoords(e);
-    if (isErasing) {
-      erasedThisDrag.clear();
-      eraseStrokeAt(x, y);
-    } else {
-      prev = { x, y };
-    }
-  });
-
-  canvas.addEventListener("mousemove", (e) => {
-    const { x, y } = getRelativeCoords(e);
-    if (isErasing) {
-      if (isDrawing) eraseStrokeAt(x, y);
-      redrawAll();
-      drawEraserCursor(x, y);
-      return;
-    }
-    if (!isDrawing) return;
-    const current = { x, y };
-    drawLine(prev.x, prev.y, current.x, current.y, "#000");
-    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
-    prev = current;
-  });
-
-  canvas.addEventListener("mouseup", () => isDrawing = false);
-  canvas.addEventListener("mouseleave", () => isDrawing = false);
-
   function eraseStrokeAt(x, y) {
+    const world = toWorld(x, y);
     const keysToDelete = Object.entries(strokes)
       .filter(([key, s]) => {
-        const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
+        const dist = pointToSegmentDistance(world.x, world.y, s.x1, s.y1, s.x2, s.y2);
         return dist < threshold && !erasedThisDrag.has(key);
       })
       .map(([key]) => key);
@@ -125,6 +105,7 @@ window.addEventListener("DOMContentLoaded", () => {
       for (const key of keysToDelete) {
         delete strokes[key];
       }
+      redrawAll();
     });
   }
 
@@ -133,32 +114,85 @@ window.addEventListener("DOMContentLoaded", () => {
     const B = py - y1;
     const C = x2 - x1;
     const D = y2 - y1;
-
     const dot = A * C + B * D;
     const lenSq = C * C + D * D;
     if (lenSq === 0) return Math.sqrt(A * A + B * B);
-
     let param = dot / lenSq;
-    if (param < 0) param = 0;
-    else if (param > 1) param = 1;
-
+    param = Math.max(0, Math.min(1, param));
     const xx = x1 + param * C;
     const yy = y1 + param * D;
-    const dx = px - xx;
-    const dy = py - yy;
-    return Math.sqrt(dx * dx + dy * dy);
+    return Math.hypot(px - xx, py - yy);
   }
 
-  onChildAdded(strokesRef, (snap) => {
-    const s = snap.val();
-    strokes[snap.key] = s;
-    drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
+  canvas.addEventListener("mousedown", (e) => {
+    if (spacePressed) {
+      isPanning = true;
+      panStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      return;
+    }
+
+    isDrawing = true;
+    if (isErasing) {
+      erasedThisDrag.clear();
+      eraseStrokeAt(e.offsetX, e.offsetY);
+    } else {
+      const world = toWorld(e.offsetX, e.offsetY);
+      prev = { x: world.x, y: world.y };
+    }
   });
 
-  onValue(strokesRef, (snap) => {
-    if (!snap.exists()) {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      strokes = {};
+  canvas.addEventListener("mouseup", () => {
+    isDrawing = false;
+    isPanning = false;
+  });
+
+  canvas.addEventListener("mousemove", (e) => {
+    mouseX = e.offsetX;
+    mouseY = e.offsetY;
+
+    if (isPanning) {
+      pan.x = e.clientX - panStart.x;
+      pan.y = e.clientY - panStart.y;
+      redrawAll();
+      return;
+    }
+
+    if (isErasing) {
+      if (isDrawing) eraseStrokeAt(mouseX, mouseY);
+      redrawAll();
+      drawEraserCursor();
+      return;
+    }
+
+    if (!isDrawing) return;
+
+    const current = toWorld(mouseX, mouseY);
+    drawLine(prev.x, prev.y, current.x, current.y, "#000");
+    sendStroke(prev.x, prev.y, current.x, current.y, "#000");
+    prev = current;
+  });
+
+  canvas.addEventListener("wheel", (e) => {
+    e.preventDefault();
+    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
+    const world = toWorld(e.offsetX, e.offsetY);
+    scale *= zoom;
+    pan.x = e.offsetX - world.x * scale;
+    pan.y = e.offsetY - world.y * scale;
+    redrawAll();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (e.code === "Space") {
+      spacePressed = true;
+      canvas.style.cursor = "grab";
+    }
+  });
+
+  document.addEventListener("keyup", (e) => {
+    if (e.code === "Space") {
+      spacePressed = false;
+      canvas.style.cursor = isErasing ? "none" : "crosshair";
     }
   });
 
@@ -170,6 +204,21 @@ window.addEventListener("DOMContentLoaded", () => {
     isErasing = !isErasing;
     isDrawing = false;
     canvas.style.cursor = isErasing ? "none" : "crosshair";
-    if (!isErasing) redrawAll();
+    if (!isErasing) {
+      redrawAll();
+    }
+  });
+
+  onChildAdded(strokesRef, (snap) => {
+    const s = snap.val();
+    strokes[snap.key] = s;
+    redrawAll();
+  });
+
+  onValue(strokesRef, (snap) => {
+    if (!snap.exists()) {
+      strokes = {};
+      redrawAll();
+    }
   });
 });
