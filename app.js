@@ -1,4 +1,3 @@
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/11.9.1/firebase-app.js";
 import {
   getDatabase,
@@ -28,37 +27,36 @@ window.addEventListener("DOMContentLoaded", () => {
   const canvas = document.getElementById("board");
   const ctx = canvas.getContext("2d");
 
-  canvas.width = canvas.clientWidth;
-  canvas.height = canvas.clientHeight;
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
 
   let isDrawing = false;
   let isErasing = false;
   let prev = {};
   let strokes = {};
-  let scale = 1;
-  let origin = { x: 0, y: 0 };
-  let pan = { x: 0, y: 0 };
-  const threshold = 30;
-  let erasedThisDrag = new Set();
-  let mouseX = 0;
-  let mouseY = 0;
-  let spacePressed = false;
+  let panOffset = { x: 0, y: 0 };
   let isPanning = false;
   let panStart = {};
+  let threshold = 30;
+  let erasedThisDrag = new Set();
+  let spacePressed = false;
 
-  function toWorld(x, y) {
-    return {
-      x: (x - pan.x) / scale,
-      y: (y - pan.y) / scale
-    };
+  function worldToScreen(x, y) {
+    return { x: x + panOffset.x, y: y + panOffset.y };
+  }
+
+  function screenToWorld(x, y) {
+    return { x: x - panOffset.x, y: y - panOffset.y };
   }
 
   function drawLine(x1, y1, x2, y2, color) {
+    const a = worldToScreen(x1, y1);
+    const b = worldToScreen(x2, y2);
     ctx.strokeStyle = color;
-    ctx.lineWidth = 2 / scale;
+    ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(x1, y1);
-    ctx.lineTo(x2, y2);
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
     ctx.stroke();
   }
 
@@ -68,28 +66,25 @@ window.addEventListener("DOMContentLoaded", () => {
   }
 
   function redrawAll() {
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.setTransform(scale, 0, 0, scale, pan.x, pan.y);
     for (const s of Object.values(strokes)) {
       drawLine(s.x1, s.y1, s.x2, s.y2, s.color);
     }
   }
 
-  function drawEraserCursor() {
-    const world = toWorld(mouseX, mouseY);
+  function drawEraserCursor(x, y) {
     ctx.beginPath();
-    ctx.arc(world.x, world.y, threshold, 0, 2 * Math.PI);
+    ctx.arc(x, y, threshold, 0, 2 * Math.PI);
     ctx.strokeStyle = "#3498db";
-    ctx.lineWidth = 1 / scale;
+    ctx.lineWidth = 1;
     ctx.stroke();
   }
 
-  function eraseStrokeAt(x, y) {
-    const world = toWorld(x, y);
+  function eraseStrokeAt(screenX, screenY) {
+    const { x, y } = screenToWorld(screenX, screenY);
     const keysToDelete = Object.entries(strokes)
       .filter(([key, s]) => {
-        const dist = pointToSegmentDistance(world.x, world.y, s.x1, s.y1, s.x2, s.y2);
+        const dist = pointToSegmentDistance(x, y, s.x1, s.y1, s.x2, s.y2);
         return dist < threshold && !erasedThisDrag.has(key);
       })
       .map(([key]) => key);
@@ -102,9 +97,7 @@ window.addEventListener("DOMContentLoaded", () => {
         return remove(ref(db, `strokes/${key}`));
       })
     ).then(() => {
-      for (const key of keysToDelete) {
-        delete strokes[key];
-      }
+      for (const key of keysToDelete) delete strokes[key];
       redrawAll();
     });
   }
@@ -127,17 +120,15 @@ window.addEventListener("DOMContentLoaded", () => {
   canvas.addEventListener("mousedown", (e) => {
     if (spacePressed) {
       isPanning = true;
-      panStart = { x: e.clientX - pan.x, y: e.clientY - pan.y };
+      panStart = { x: e.clientX, y: e.clientY };
       return;
     }
-
     isDrawing = true;
     if (isErasing) {
       erasedThisDrag.clear();
       eraseStrokeAt(e.offsetX, e.offsetY);
     } else {
-      const world = toWorld(e.offsetX, e.offsetY);
-      prev = { x: world.x, y: world.y };
+      prev = screenToWorld(e.offsetX, e.offsetY);
     }
   });
 
@@ -147,39 +138,27 @@ window.addEventListener("DOMContentLoaded", () => {
   });
 
   canvas.addEventListener("mousemove", (e) => {
-    mouseX = e.offsetX;
-    mouseY = e.offsetY;
-
     if (isPanning) {
-      pan.x = e.clientX - panStart.x;
-      pan.y = e.clientY - panStart.y;
+      panOffset.x += e.clientX - panStart.x;
+      panOffset.y += e.clientY - panStart.y;
+      panStart = { x: e.clientX, y: e.clientY };
       redrawAll();
       return;
     }
 
     if (isErasing) {
-      if (isDrawing) eraseStrokeAt(mouseX, mouseY);
+      if (isDrawing) eraseStrokeAt(e.offsetX, e.offsetY);
       redrawAll();
-      drawEraserCursor();
+      drawEraserCursor(e.offsetX, e.offsetY);
       return;
     }
 
     if (!isDrawing) return;
 
-    const current = toWorld(mouseX, mouseY);
+    const current = screenToWorld(e.offsetX, e.offsetY);
     drawLine(prev.x, prev.y, current.x, current.y, "#000");
     sendStroke(prev.x, prev.y, current.x, current.y, "#000");
     prev = current;
-  });
-
-  canvas.addEventListener("wheel", (e) => {
-    e.preventDefault();
-    const zoom = e.deltaY < 0 ? 1.1 : 0.9;
-    const world = toWorld(e.offsetX, e.offsetY);
-    scale *= zoom;
-    pan.x = e.offsetX - world.x * scale;
-    pan.y = e.offsetY - world.y * scale;
-    redrawAll();
   });
 
   document.addEventListener("keydown", (e) => {
@@ -204,9 +183,7 @@ window.addEventListener("DOMContentLoaded", () => {
     isErasing = !isErasing;
     isDrawing = false;
     canvas.style.cursor = isErasing ? "none" : "crosshair";
-    if (!isErasing) {
-      redrawAll();
-    }
+    if (!isErasing) redrawAll();
   });
 
   onChildAdded(strokesRef, (snap) => {
